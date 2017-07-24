@@ -1,8 +1,9 @@
 package edu.njit.cs643.group7.model;
 
+import java.io.Serializable;
 import java.util.List;
 
-public class Business {
+public class Business implements Serializable {
 
 	private String business_id;
 	private String name;
@@ -11,15 +12,18 @@ public class Business {
 	private String city;
 	private String state;
 	private String postal_code;
-	private String latitude;
-	private String longitude;
-	private String stars;
-	private String review_count;
-	private String is_open;
+	private Double latitude;
+	private Double longitude;
+	private Double stars;
+	private Long review_count;
+	private Long is_open;
 	private List<String> attributes;
 	private List<String> categories;
 	private List<String> hours;
 	private String type;
+
+	public Business() {
+	}
 
 	public String getBusiness_id() {
 		return business_id;
@@ -77,43 +81,43 @@ public class Business {
 		this.postal_code = postalCode;
 	}
 
-	public String getLatitude() {
+	public Double getLatitude() {
 		return latitude;
 	}
 
-	public void setLatitude(String latitude) {
+	public void setLatitude(Double latitude) {
 		this.latitude = latitude;
 	}
 
-	public String getLongitude() {
+	public Double getLongitude() {
 		return longitude;
 	}
 
-	public void setLongitude(String longitude) {
+	public void setLongitude(Double longitude) {
 		this.longitude = longitude;
 	}
 
-	public String getStars() {
+	public Double getStars() {
 		return stars;
 	}
 
-	public void setStars(String stars) {
+	public void setStars(Double stars) {
 		this.stars = stars;
 	}
 
-	public String getReview_count() {
+	public Long getReview_count() {
 		return review_count;
 	}
 
-	public void setReview_count(String review_count) {
+	public void setReview_count(Long review_count) {
 		this.review_count = review_count;
 	}
 
-	public String getIs_open() {
+	public Long getIs_open() {
 		return is_open;
 	}
 
-	public void setIs_open(String isOpen) {
+	public void setIs_open(Long isOpen) {
 		this.is_open = isOpen;
 	}
 
@@ -147,6 +151,11 @@ public class Business {
 
 	public void setType(String type) {
 		this.type = type;
+	}
+
+	@Override
+	public String toString() {
+		return "Business {" + "name='" + name + '\'' + ", stars='" + stars + '\'' + '}';
 	}
 
 }
