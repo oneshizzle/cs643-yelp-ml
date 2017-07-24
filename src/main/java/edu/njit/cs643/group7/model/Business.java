@@ -10,12 +10,12 @@ public class Business {
 	private String address;
 	private String city;
 	private String state;
-	private String postalCode;
+	private String postal_code;
 	private String latitude;
 	private String longitude;
 	private String stars;
 	private String review_count;
-	private String isOpen;
+	private String is_open;
 	private List<String> attributes;
 	private List<String> categories;
 	private List<String> hours;
@@ -69,12 +69,12 @@ public class Business {
 		this.state = state;
 	}
 
-	public String getPostalCode() {
-		return postalCode;
+	public String getPostal_code() {
+		return postal_code;
 	}
 
-	public void setPostalCode(String postalCode) {
-		this.postalCode = postalCode;
+	public void setPostal_code(String postalCode) {
+		this.postal_code = postalCode;
 	}
 
 	public String getLatitude() {
@@ -109,12 +109,12 @@ public class Business {
 		this.review_count = review_count;
 	}
 
-	public String getIsOpen() {
-		return isOpen;
+	public String getIs_open() {
+		return is_open;
 	}
 
-	public void setIsOpen(String isOpen) {
-		this.isOpen = isOpen;
+	public void setIs_open(String isOpen) {
+		this.is_open = isOpen;
 	}
 
 	public List<String> getAttributes() {
