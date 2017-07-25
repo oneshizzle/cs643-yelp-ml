@@ -5,13 +5,13 @@ public class Review {
 	private String review_id;
 	private String user_id;
 	private String business_id;
-	private String stars;
+	private Double stars;
 	private String date;
 	private String text;
 	private String useful;
-	private String funny;
-	private String cool;
-	private String type;
+	private Boolean funny;
+	private Boolean cool;
+	private Boolean type;
 	
 	public String getReview_id() {
 		return review_id;
@@ -31,10 +31,10 @@ public class Review {
 	public void setBusiness_id(String business_id) {
 		this.business_id = business_id;
 	}
-	public String getStars() {
+	public Double getStars() {
 		return stars;
 	}
-	public void setStars(String stars) {
+	public void setStars(Double stars) {
 		this.stars = stars;
 	}
 	public String getDate() {
@@ -55,22 +55,22 @@ public class Review {
 	public void setUseful(String useful) {
 		this.useful = useful;
 	}
-	public String getFunny() {
+	public Boolean getFunny() {
 		return funny;
 	}
-	public void setFunny(String funny) {
+	public void setFunny(Boolean funny) {
 		this.funny = funny;
 	}
-	public String getCool() {
+	public Boolean getCool() {
 		return cool;
 	}
-	public void setCool(String cool) {
+	public void setCool(Boolean cool) {
 		this.cool = cool;
 	}
-	public String getType() {
+	public Boolean getType() {
 		return type;
 	}
-	public void setType(String type) {
+	public void setType(Boolean type) {
 		this.type = type;
 	}
 }
