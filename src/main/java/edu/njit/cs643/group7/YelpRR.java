@@ -55,6 +55,7 @@ public class YelpRR {
 		Dataset<Business> businessDS = spark.read()
 				.json(ClassLoader.getSystemResource("data/sample_business_json").getPath()).as(businessEncoder);
 		Dataset<Business> restaurantDS = businessDS
+				.filter((FilterFunction<Business>) aBusiness -> Utils.isRestaurant(aBusiness))
 				.filter((FilterFunction<Business>) aBusiness -> Utils.isRestaurant(aBusiness));
 		businessDS.show();
 
