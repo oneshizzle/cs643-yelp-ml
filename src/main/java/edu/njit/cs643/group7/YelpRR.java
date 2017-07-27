@@ -29,7 +29,7 @@ import org.apache.spark.storage.StorageLevel;
 
 import edu.njit.cs643.group7.model.Business;
 import edu.njit.cs643.group7.model.Review;
-import edu.njit.cs643.group7.util.BusinessUtils;
+import edu.njit.cs643.group7.util.Utils;
 import scala.Tuple2;
 
 /**
@@ -45,6 +45,7 @@ public class YelpRR {
 	/**
 	 * @param args
 	 */
+	@SuppressWarnings("serial")
 	public static void main(String[] args) {
 		spark = SparkSession.builder().appName(APP_NAME).master("local[2]").config("spark.executor.memory", "1g")
 				.config("spark.some.config.option", "some-value").getOrCreate();
@@ -54,7 +55,7 @@ public class YelpRR {
 		Dataset<Business> businessDS = spark.read()
 				.json(ClassLoader.getSystemResource("data/sample_business_json").getPath()).as(businessEncoder);
 		Dataset<Business> restaurantDS = businessDS
-				.filter((FilterFunction<Business>) aBusiness -> BusinessUtils.isRestaurant(aBusiness));
+				.filter((FilterFunction<Business>) aBusiness -> Utils.isRestaurant(aBusiness));
 		businessDS.show();
 
 		restaurantDS.show();
@@ -179,6 +180,8 @@ public class YelpRR {
 		Double testRmse = computeRMSE(bestModel, test);
 		System.out.println("The best model was trained with rank = " + bestRank + " and lambda = " + bestLambda
 				+ ", and numIter = " + bestNumIter + ", and its RMSE on the test set is " + testRmse + ".");
+		
+		// 
 	}
 
 	public static Double computeRMSE(MatrixFactorizationModel model, JavaRDD<Rating> data) {

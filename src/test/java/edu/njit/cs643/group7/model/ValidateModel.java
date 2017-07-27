@@ -13,7 +13,7 @@ import com.google.gson.Gson;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 
-import edu.njit.cs643.group7.util.BusinessUtils;
+import edu.njit.cs643.group7.util.Utils;
 
 public class ValidateModel {
 
@@ -29,7 +29,7 @@ public class ValidateModel {
 			// Convert JSON to Java Object
 			while (jsonReader.hasNext() && jsonReader.peek() != JsonToken.END_DOCUMENT) {
 				Business aBusiness = gson.fromJson(jsonReader, Business.class);
-				System.out.println(aBusiness.getName() + " " + BusinessUtils.isRestaurant(aBusiness));
+				System.out.println(aBusiness.getName() + " " + Utils.isRestaurant(aBusiness));
 				businesses.add(aBusiness);
 			}
 		} catch (IOException e) {

@@ -4,7 +4,7 @@ import java.util.Arrays;
 
 import edu.njit.cs643.group7.model.Business;
 
-public class BusinessUtils {
+public class Utils {
 
 	public static Boolean isRestaurant(Business aBusiness) {
 		Boolean isRestaurant = false;
