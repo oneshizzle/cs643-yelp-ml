@@ -35,6 +35,7 @@ public class YelpRR {
 	public static final String CLUSTER = "local";
 	private static SparkSession spark;
 
+	@SuppressWarnings("unused")
 	public static void main(String[] args) {
 		spark = SparkSession.builder().appName(APP_NAME).getOrCreate();
 		String bizJsonPath = "hdfs://ec2-18-220-65-168.us-east-2.compute.amazonaws.com:9000/user/ubuntu/YelpData/yelp_academic_dataset_business.json";
@@ -45,16 +46,16 @@ public class YelpRR {
 		Dataset<Business> businessDS = spark.read().json(bizJsonPath).as(businessEncoder);
 		Dataset<Business> restaurantDS = businessDS
 				.filter((FilterFunction<Business>) aBusiness -> Utils.isRestaurant(aBusiness));
-		businessDS.show();
+		// businessDS.show();
 
-		restaurantDS.show();
+		// restaurantDS.show();
 
 		Dataset<Review> reviewDS = spark.read().json(reviewJsonPath).as(reviewEncoder);
-		reviewDS.show();
+		// reviewDS.show();
 
-		Dataset<Row> restaurantReviewsDS = reviewDS.join(businessDS, "business_id");
+		Dataset<Row> restaurantReviewsDS = reviewDS.join(restaurantDS, "business_id").distinct();
 
-		restaurantReviewsDS.show();
+		// restaurantReviewsDS.show();
 
 		JavaRDD<Tuple2<Integer, Rating>> ratings = restaurantReviewsDS.javaRDD()
 				.map(new Function<Row, Tuple2<Integer, Rating>>() {
