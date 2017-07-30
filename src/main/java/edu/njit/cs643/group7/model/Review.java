@@ -1,6 +1,8 @@
 package edu.njit.cs643.group7.model;
 
-public class Review {
+import java.io.Serializable;
+
+public class Review implements Serializable {
 
 	private String review_id;
 	private String user_id;

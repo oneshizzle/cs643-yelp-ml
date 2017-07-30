@@ -1,6 +1,3 @@
-/**
- * 
- */
 package edu.njit.cs643.group7;
 
 import java.util.ArrayList;
@@ -32,37 +29,27 @@ import edu.njit.cs643.group7.model.Review;
 import edu.njit.cs643.group7.util.Utils;
 import scala.Tuple2;
 
-/**
- * Yelp Restaurant Recommender App
- *
- */
 public class YelpRR {
 
 	public static final String APP_NAME = "YelpRestaurantRecommender";
 	public static final String CLUSTER = "local";
 	private static SparkSession spark;
 
-	/**
-	 * @param args
-	 */
-	@SuppressWarnings("serial")
 	public static void main(String[] args) {
-		spark = SparkSession.builder().appName(APP_NAME).master("local[2]").config("spark.executor.memory", "1g")
-				.config("spark.some.config.option", "some-value").getOrCreate();
+		spark = SparkSession.builder().appName(APP_NAME).getOrCreate();
+		String bizJsonPath = "hdfs://ec2-18-220-65-168.us-east-2.compute.amazonaws.com:9000/user/ubuntu/YelpData/yelp_academic_dataset_business.json";
+		String reviewJsonPath = "hdfs://ec2-18-220-65-168.us-east-2.compute.amazonaws.com:9000/user/ubuntu/YelpData/yelp_academic_dataset_review.json";
 		Encoder<Business> businessEncoder = Encoders.bean(Business.class);
 		Encoder<Review> reviewEncoder = Encoders.bean(Review.class);
 
-		Dataset<Business> businessDS = spark.read()
-				.json(ClassLoader.getSystemResource("data/sample_business_json").getPath()).as(businessEncoder);
+		Dataset<Business> businessDS = spark.read().json(bizJsonPath).as(businessEncoder);
 		Dataset<Business> restaurantDS = businessDS
-				.filter((FilterFunction<Business>) aBusiness -> Utils.isRestaurant(aBusiness))
 				.filter((FilterFunction<Business>) aBusiness -> Utils.isRestaurant(aBusiness));
 		businessDS.show();
 
 		restaurantDS.show();
 
-		Dataset<Review> reviewDS = spark.read().json(ClassLoader.getSystemResource("data/sample_review_json").getPath())
-				.as(reviewEncoder);
+		Dataset<Review> reviewDS = spark.read().json(reviewJsonPath).as(reviewEncoder);
 		reviewDS.show();
 
 		Dataset<Row> restaurantReviewsDS = reviewDS.join(businessDS, "business_id");
@@ -181,8 +168,8 @@ public class YelpRR {
 		Double testRmse = computeRMSE(bestModel, test);
 		System.out.println("The best model was trained with rank = " + bestRank + " and lambda = " + bestLambda
 				+ ", and numIter = " + bestNumIter + ", and its RMSE on the test set is " + testRmse + ".");
-		
-		// 
+
+		//
 	}
 
 	public static Double computeRMSE(MatrixFactorizationModel model, JavaRDD<Rating> data) {
