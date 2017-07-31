@@ -1,6 +1,7 @@
 package edu.njit.cs643.group7;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -26,6 +27,7 @@ import org.apache.spark.storage.StorageLevel;
 
 import edu.njit.cs643.group7.model.Business;
 import edu.njit.cs643.group7.model.Review;
+import edu.njit.cs643.group7.model.User;
 import edu.njit.cs643.group7.util.Utils;
 import scala.Tuple2;
 
@@ -46,9 +48,11 @@ public class YelpRR {
 		 **/
 		String bizJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_business.json";
 		String reviewJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_review.json";
+		String userJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_user.json";
 
 		Encoder<Business> businessEncoder = Encoders.bean(Business.class);
 		Encoder<Review> reviewEncoder = Encoders.bean(Review.class);
+		Encoder<User> userEncoder = Encoders.bean(User.class);
 
 		Dataset<Business> businessDS = spark.read().json(bizJsonPath).as(businessEncoder);
 		Dataset<Business> restaurantDS = businessDS
@@ -179,6 +183,43 @@ public class YelpRR {
 				+ ", and numIter = " + bestNumIter + ", and its RMSE on the test set is " + testRmse + ".");
 
 		//
+
+		Dataset<Review> review2017DS = spark.read().json(reviewJsonPath).as(reviewEncoder)
+				.filter((FilterFunction<Review>) aReview -> aReview.getDate().substring(0, 4).equalsIgnoreCase("2017")
+						|| aReview.getDate().substring(0, 4).equalsIgnoreCase("2016"));
+		// reviewDS.show();
+
+		Dataset<Business> njAreaRestaurantDS = restaurantDS.filter((FilterFunction<Business>) aRestaurant -> Arrays
+				.asList("NJ", "NY", "CT").contains(aRestaurant.getState()));
+		Dataset<Row> restaurantReviews2017DS = review2017DS.join(njAreaRestaurantDS.select("name", "business_id"), "business_id").distinct()
+				.select("name", "business_id", "user_id","review_id","stars");
+
+		restaurantReviews2017DS.show();
+
+		JavaRDD<Tuple2<Integer, Rating>> nycRatings = restaurantReviews2017DS.javaRDD()
+				.map(new Function<Row, Tuple2<Integer, Rating>>() {
+					public Tuple2<Integer, Rating> call(Row aRow) throws Exception {
+						Integer cacheStamp = Integer.valueOf(aRow.getAs("review_id").hashCode()) % 10;
+						Rating rating = new Rating(Integer.valueOf(aRow.getAs("user_id").hashCode()),
+								Integer.valueOf(aRow.getAs("business_id").hashCode()), aRow.getAs("stars"));
+						return new Tuple2<Integer, Rating>(cacheStamp, rating);
+					}
+				});
+
+		final MatrixFactorizationModel finalModel = bestModel;
+
+		Dataset<Row> userReviews = restaurantReviews2017DS.groupBy("user_id").count().filter("count > 2").sort("count");
+		userReviews.show();
+
+		Integer user_id = userReviews.select("user_id").collectAsList().get(0).hashCode();
+
+		List<Rating> recommendations = getRecommendations(user_id, finalModel, nycRatings, njAreaRestaurantDS);
+		for (Rating recommendation : recommendations) {
+			restaurantDS.filter((FilterFunction<Business>) aRestaurant -> (aRestaurant.getBusiness_id()
+					.hashCode() == recommendation.product()));
+			restaurantDS.select("name", "business_id").show();
+		}
+
 	}
 
 	public static Double computeRMSE(MatrixFactorizationModel model, JavaRDD<Rating> data) {
@@ -212,6 +253,7 @@ public class YelpRR {
 		}).rdd()).mean();
 
 		return Math.sqrt(mse);
+
 	}
 
 	/**
@@ -225,10 +267,10 @@ public class YelpRR {
 	 *            rating data.
 	 * @param products
 	 *            product list.
-	 * @return The list of recommended products.
+	 * @return The list of recommended restaurants.
 	 */
 	private static List<Rating> getRecommendations(final int userId, MatrixFactorizationModel model,
-			JavaRDD<Tuple2<Integer, Rating>> ratings, Map<Integer, String> products) {
+			JavaRDD<Tuple2<Integer, Rating>> ratings, Dataset<Business> restaurantInterestSet) {
 		List<Rating> recommendations;
 
 		// Getting the users ratings
@@ -242,7 +284,7 @@ public class YelpRR {
 			}
 		});
 
-		// Getting the product ID's of the products that user rated
+		// Getting the restaurants ID's of the restaurants that user rated
 		JavaRDD<Tuple2<Object, Object>> userProducts = userRatings.map(new Function<Rating, Tuple2<Object, Object>>() {
 			public Tuple2<Object, Object> call(Rating r) {
 				return new Tuple2<Object, Object>(r.user(), r.product());
@@ -250,15 +292,18 @@ public class YelpRR {
 		});
 
 		List<Integer> productSet = new ArrayList<Integer>();
-		productSet.addAll(products.keySet());
+		List<Integer> visitedSet = new ArrayList<Integer>();
+
+		restaurantInterestSet.collectAsList().stream().forEach(x -> productSet.add(x.getBusiness_id().hashCode()));
 
 		Iterator<Tuple2<Object, Object>> productIterator = userProducts.toLocalIterator();
 
-		// Removing the user watched (rated) set from the all product set
+		// Removing the user visited (rated) set from the all product set
 		while (productIterator.hasNext()) {
-			Integer movieId = (Integer) productIterator.next()._2();
-			if (productSet.contains(movieId)) {
-				productSet.remove(movieId);
+			Integer businessId = (Integer) productIterator.next()._2();
+			if (productSet.contains(businessId)) {
+				productSet.remove(businessId);
+				visitedSet.add(businessId);
 			}
 		}
 
