@@ -37,15 +37,13 @@ public class YelpRR {
 	public static final String CLUSTER = "local";
 	private static SparkSession spark;
 
-	@SuppressWarnings("unused")
 	public static void main(String[] args) {
 		spark = SparkSession.builder().appName(APP_NAME).getOrCreate();
-		/**
-		 * String bizJsonPath =
-		 * "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_business.json";
-		 * String reviewJsonPath =
-		 * "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_review.json";
-		 **/
+
+		// String bizJsonPath =
+		// "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_business.json";
+		// String reviewJsonPath =
+		// "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_review.json";
 		String bizJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_business.json";
 		String reviewJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_review.json";
 		String userJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_user.json";
@@ -55,37 +53,56 @@ public class YelpRR {
 		Encoder<User> userEncoder = Encoders.bean(User.class);
 
 		Dataset<Business> businessDS = spark.read().json(bizJsonPath).as(businessEncoder);
-		Dataset<Business> restaurantDS = businessDS
-				.filter((FilterFunction<Business>) aBusiness -> Utils.isRestaurant(aBusiness));
+		Dataset<Business> restaurantDS = businessDS.filter((FilterFunction<Business>) aBusiness -> Utils.isRestaurant(aBusiness));
 		// businessDS.show();
 
 		// restaurantDS.show();
 
-		Dataset<Review> reviewDS = spark.read().json(reviewJsonPath).as(reviewEncoder).filter(
-				(FilterFunction<Review>) aReview -> !aReview.getDate().substring(0, 4).equalsIgnoreCase("2017"));
+		Dataset<Review> reviewDS = spark.read().json(reviewJsonPath).as(reviewEncoder);
+
+		Dataset<Review> reviewpre2016DS = spark.read().json(reviewJsonPath).as(reviewEncoder)
+				.filter((FilterFunction<Review>) aReview -> !aReview.getDate().substring(0, 4).equalsIgnoreCase("2017"))
+				.filter((FilterFunction<Review>) aReview -> !aReview.getDate().substring(0, 4).equalsIgnoreCase("2016"));
+
+		Dataset<Review> reviewpost2016DS = spark.read().json(reviewJsonPath).as(reviewEncoder)
+				.filter((FilterFunction<Review>) aReview -> aReview.getDate().substring(0, 4).equalsIgnoreCase("2017")
+						|| aReview.getDate().substring(0, 4).equalsIgnoreCase("2016"));
+
 		// reviewDS.show();
 
+		Dataset<Row> restaurantOldReviewsDS = reviewpre2016DS.join(restaurantDS, "business_id").distinct();
+		Dataset<Row> restaurantNewReviewsDS = reviewpost2016DS.join(restaurantDS, "business_id").distinct();
 		Dataset<Row> restaurantReviewsDS = reviewDS.join(restaurantDS, "business_id").distinct();
 
-		// restaurantReviewsDS.show();
+		System.out.println("Getting Commmon Users (Reviewers) before and after 2016: ");
+		// find common reviews across dataset
+		Dataset<Row> commonUsers = restaurantOldReviewsDS.join(restaurantNewReviewsDS, "user_id").select("user_id").distinct();
 
-		JavaRDD<Tuple2<Integer, Rating>> ratings = restaurantReviewsDS.javaRDD()
-				.map(new Function<Row, Tuple2<Integer, Rating>>() {
-					public Tuple2<Integer, Rating> call(Row aRow) throws Exception {
-						Integer cacheStamp = Integer.valueOf(aRow.getAs("review_id").hashCode()) % 10;
-						Rating rating = new Rating(Integer.valueOf(aRow.getAs("user_id").hashCode()),
-								Integer.valueOf(aRow.getAs("business_id").hashCode()), aRow.getAs("stars"));
-						return new Tuple2<Integer, Rating>(cacheStamp, rating);
-					}
-				});
+		// commonUsers.show();
 
-		Map<Integer, String> products = restaurantReviewsDS.javaRDD()
-				.mapToPair(new PairFunction<Row, Integer, String>() {
-					public Tuple2<Integer, String> call(Row aRow) throws Exception {
-						return new Tuple2<Integer, String>(Integer.valueOf(aRow.getAs("business_id").hashCode()),
-								aRow.getAs("name").toString());
-					}
-				}).collectAsMap();
+		JavaRDD<Tuple2<Integer, Rating>> ratings = restaurantReviewsDS.javaRDD().map(new Function<Row, Tuple2<Integer, Rating>>() {
+			public Tuple2<Integer, Rating> call(Row aRow) throws Exception {
+				Integer cacheStamp = Integer.valueOf(aRow.getAs("review_id").hashCode()) % 10;
+				Rating rating = new Rating(Integer.valueOf(aRow.getAs("user_id").hashCode()), Integer.valueOf(aRow.getAs("business_id").hashCode()),
+						aRow.getAs("stars"));
+				return new Tuple2<Integer, Rating>(cacheStamp, rating);
+			}
+		});
+
+		JavaRDD<Tuple2<Integer, Rating>> pre2016Ratings = restaurantOldReviewsDS.javaRDD().map(new Function<Row, Tuple2<Integer, Rating>>() {
+			public Tuple2<Integer, Rating> call(Row aRow) throws Exception {
+				Integer cacheStamp = Integer.valueOf(aRow.getAs("review_id").hashCode()) % 10;
+				Rating rating = new Rating(Integer.valueOf(aRow.getAs("user_id").hashCode()), Integer.valueOf(aRow.getAs("business_id").hashCode()),
+						aRow.getAs("stars"));
+				return new Tuple2<Integer, Rating>(cacheStamp, rating);
+			}
+		});
+
+		Map<Integer, String> products = restaurantReviewsDS.javaRDD().mapToPair(new PairFunction<Row, Integer, String>() {
+			public Tuple2<Integer, String> call(Row aRow) throws Exception {
+				return new Tuple2<Integer, String>(Integer.valueOf(aRow.getAs("business_id").hashCode()), aRow.getAs("name").toString());
+			}
+		}).collectAsMap();
 
 		long ratingCount = ratings.count();
 		long userCount = ratings.map(new Function<Tuple2<Integer, Rating>, Object>() {
@@ -100,8 +117,7 @@ public class YelpRR {
 			}
 		}).distinct().count();
 
-		System.out.println(
-				"Got " + ratingCount + " ratings from " + userCount + " users on " + restaurantCount + " restaurants.");
+		System.out.println("Got " + ratingCount + " ratings from " + userCount + " users on " + restaurantCount + " restaurants.");
 
 		// Splitting training data
 		int numPartitions = 10;
@@ -159,12 +175,11 @@ public class YelpRR {
 		for (int currentRank : ranks) {
 			for (float currentLambda : lambdas) {
 				for (int currentNumIter : numIters) {
-					MatrixFactorizationModel model = ALS.train(JavaRDD.toRDD(training), currentRank, currentNumIter,
-							currentLambda);
+					MatrixFactorizationModel model = ALS.train(JavaRDD.toRDD(training), currentRank, currentNumIter, currentLambda);
 
 					Double validationRmse = computeRMSE(model, validation);
-					System.out.println("RMSE (validation) = " + validationRmse + " for the model trained with rank = "
-							+ currentRank + ", lambda = " + currentLambda + ", and numIter = " + currentNumIter + ".");
+					System.out.println("RMSE (validation) = " + validationRmse + " for the model trained with rank = " + currentRank + ", lambda = "
+							+ currentLambda + ", and numIter = " + currentNumIter + ".");
 
 					if (validationRmse < bestValidationRmse) {
 						bestModel = model;
@@ -177,49 +192,53 @@ public class YelpRR {
 			}
 		}
 
-		// Computing Root Mean Square Error in the test dataset
-		Double testRmse = computeRMSE(bestModel, test);
-		System.out.println("The best model was trained with rank = " + bestRank + " and lambda = " + bestLambda
-				+ ", and numIter = " + bestNumIter + ", and its RMSE on the test set is " + testRmse + ".");
-
-		//
+		String user_id = commonUsers.select("user_id").collectAsList().get(0).mkString();
+		System.out.println(user_id + " user_id");
 
 		Dataset<Review> review2017DS = spark.read().json(reviewJsonPath).as(reviewEncoder)
 				.filter((FilterFunction<Review>) aReview -> aReview.getDate().substring(0, 4).equalsIgnoreCase("2017")
 						|| aReview.getDate().substring(0, 4).equalsIgnoreCase("2016"));
-		// reviewDS.show();
 
-		Dataset<Business> njAreaRestaurantDS = restaurantDS.filter((FilterFunction<Business>) aRestaurant -> Arrays
-				.asList("NJ", "NY", "CT").contains(aRestaurant.getState()));
+		Dataset<Business> njAreaRestaurantDS = restaurantDS
+				.filter((FilterFunction<Business>) aRestaurant -> Arrays.asList("NJ", "NY", "CT").contains(aRestaurant.getState()));
 		Dataset<Row> restaurantReviews2017DS = review2017DS.join(njAreaRestaurantDS.select("name", "business_id"), "business_id").distinct()
-				.select("name", "business_id", "user_id","review_id","stars");
+				.select("name", "business_id", "user_id", "review_id", "stars");
 
-		restaurantReviews2017DS.show();
+		System.out.println(restaurantDS.count() + " total number of area restaurants");
 
-		JavaRDD<Tuple2<Integer, Rating>> nycRatings = restaurantReviews2017DS.javaRDD()
-				.map(new Function<Row, Tuple2<Integer, Rating>>() {
-					public Tuple2<Integer, Rating> call(Row aRow) throws Exception {
-						Integer cacheStamp = Integer.valueOf(aRow.getAs("review_id").hashCode()) % 10;
-						Rating rating = new Rating(Integer.valueOf(aRow.getAs("user_id").hashCode()),
-								Integer.valueOf(aRow.getAs("business_id").hashCode()), aRow.getAs("stars"));
-						return new Tuple2<Integer, Rating>(cacheStamp, rating);
-					}
-				});
+		System.out.println(njAreaRestaurantDS.count() + " number of nj area restaurants");
+
+		// Computing Root Mean Square Error in the test dataset
+		Double testRmse = computeRMSE(bestModel, test);
+		System.out.println("The best model was trained with rank = " + bestRank + " and lambda = " + bestLambda + ", and numIter = " + bestNumIter
+				+ ", and its RMSE on the test set is " + testRmse + ".");
 
 		final MatrixFactorizationModel finalModel = bestModel;
+		
+		/** Actual Recommendations
 
-		Dataset<Row> userReviews = restaurantReviews2017DS.groupBy("user_id").count().filter("count > 2").sort("count");
-		userReviews.show();
+		List<Rating> recommendations = getRecommendations(user_id, finalModel, pre2016Ratings, njAreaRestaurantDS);
+		System.out.println("Recommendations size: " + recommendations.size());
 
-		Integer user_id = userReviews.select("user_id").collectAsList().get(0).hashCode();
+		Dataset<Row> actualReviews = restaurantNewReviewsDS
+				.filter((FilterFunction<Row>) aReview -> aReview.getAs("user_id").toString().equalsIgnoreCase(user_id));
 
-		List<Rating> recommendations = getRecommendations(user_id, finalModel, nycRatings, njAreaRestaurantDS);
 		for (Rating recommendation : recommendations) {
-			restaurantDS.filter((FilterFunction<Business>) aRestaurant -> (aRestaurant.getBusiness_id()
-					.hashCode() == recommendation.product()));
-			restaurantDS.select("name", "business_id").show();
-		}
+			Dataset<Business> restaurant = restaurantDS
+					.filter((FilterFunction<Business>) aRestaurant -> (aRestaurant.getBusiness_id().hashCode() == recommendation.product()));
+			System.out.println("Restaurant: " + restaurant.first().getName() + " Predicted Score: " + recommendation.rating());
 
+			Dataset<Row> actualReview = actualReviews
+					.filter((FilterFunction<Row>) aReview -> aReview.getAs("user_id").toString().hashCode() == recommendation.user()
+							&& aReview.getAs("business_id").toString().equalsIgnoreCase(restaurant.first().getBusiness_id()));
+
+			if (actualReview.count() > 0) {
+				System.out.println("Restaurant: " + restaurant.first().getName() + " Actual Score: " + actualReview.first().getAs("stars"));
+			}
+		 
+		}
+		
+		**/
 	}
 
 	public static Double computeRMSE(MatrixFactorizationModel model, JavaRDD<Rating> data) {
@@ -229,19 +248,16 @@ public class YelpRR {
 			}
 		});
 
-		JavaPairRDD<Tuple2<Integer, Integer>, Double> predictions = JavaPairRDD
-				.fromJavaRDD(model.predict(JavaRDD.toRDD(userProducts)).toJavaRDD()
-						.map(new Function<Rating, Tuple2<Tuple2<Integer, Integer>, Double>>() {
-							public Tuple2<Tuple2<Integer, Integer>, Double> call(Rating r) {
-								return new Tuple2<Tuple2<Integer, Integer>, Double>(
-										new Tuple2<Integer, Integer>(r.user(), r.product()), r.rating());
-							}
-						}));
+		JavaPairRDD<Tuple2<Integer, Integer>, Double> predictions = JavaPairRDD.fromJavaRDD(
+				model.predict(JavaRDD.toRDD(userProducts)).toJavaRDD().map(new Function<Rating, Tuple2<Tuple2<Integer, Integer>, Double>>() {
+					public Tuple2<Tuple2<Integer, Integer>, Double> call(Rating r) {
+						return new Tuple2<Tuple2<Integer, Integer>, Double>(new Tuple2<Integer, Integer>(r.user(), r.product()), r.rating());
+					}
+				}));
 		JavaRDD<Tuple2<Double, Double>> predictionsAndRatings = JavaPairRDD
 				.fromJavaRDD(data.map(new Function<Rating, Tuple2<Tuple2<Integer, Integer>, Double>>() {
 					public Tuple2<Tuple2<Integer, Integer>, Double> call(Rating r) {
-						return new Tuple2<Tuple2<Integer, Integer>, Double>(
-								new Tuple2<Integer, Integer>(r.user(), r.product()), r.rating());
+						return new Tuple2<Tuple2<Integer, Integer>, Double>(new Tuple2<Integer, Integer>(r.user(), r.product()), r.rating());
 					}
 				})).join(predictions).values();
 
@@ -269,14 +285,21 @@ public class YelpRR {
 	 *            product list.
 	 * @return The list of recommended restaurants.
 	 */
-	private static List<Rating> getRecommendations(final int userId, MatrixFactorizationModel model,
-			JavaRDD<Tuple2<Integer, Rating>> ratings, Dataset<Business> restaurantInterestSet) {
+	private static List<Rating> getRecommendations(String userId, MatrixFactorizationModel model, JavaRDD<Tuple2<Integer, Rating>> ratings,
+			Dataset<Business> restaurantInterestSet) {
 		List<Rating> recommendations;
 
 		// Getting the users ratings
+		// System.out.println("ratings: " + ratings.count());
+
+		// System.out.println("userId: " + userId + " " + userId.hashCode());
+
 		JavaRDD<Rating> userRatings = ratings.filter(new Function<Tuple2<Integer, Rating>, Boolean>() {
 			public Boolean call(Tuple2<Integer, Rating> tuple) throws Exception {
-				return tuple._2().user() == userId;
+				if (tuple._2().user() == userId.hashCode()) {
+					System.out.println(userId + " ADRIEN");
+				}
+				return tuple._2().user() == userId.hashCode();
 			}
 		}).map(new Function<Tuple2<Integer, Rating>, Rating>() {
 			public Rating call(Tuple2<Integer, Rating> tuple) throws Exception {
@@ -284,12 +307,20 @@ public class YelpRR {
 			}
 		});
 
+		if (userRatings == null) {
+			System.out.println("userRatings: FAILURE");
+		}
+
+		// System.out.println("userRatings: " + userRatings.count());
+
 		// Getting the restaurants ID's of the restaurants that user rated
 		JavaRDD<Tuple2<Object, Object>> userProducts = userRatings.map(new Function<Rating, Tuple2<Object, Object>>() {
 			public Tuple2<Object, Object> call(Rating r) {
 				return new Tuple2<Object, Object>(r.user(), r.product());
 			}
 		});
+
+		// System.out.println("userProducts: " + userProducts.count());
 
 		List<Integer> productSet = new ArrayList<Integer>();
 		List<Integer> visitedSet = new ArrayList<Integer>();
@@ -301,6 +332,7 @@ public class YelpRR {
 		// Removing the user visited (rated) set from the all product set
 		while (productIterator.hasNext()) {
 			Integer businessId = (Integer) productIterator.next()._2();
+			// System.out.println("BusinessId: " + businessId);
 			if (productSet.contains(businessId)) {
 				productSet.remove(businessId);
 				visitedSet.add(businessId);
@@ -308,26 +340,38 @@ public class YelpRR {
 		}
 
 		JavaRDD<Integer> candidates = new JavaSparkContext(spark.sparkContext()).parallelize(productSet);
+		// System.out.println("candidates: " + candidates.count());
 
-		JavaRDD<Tuple2<Integer, Integer>> userCandidates = candidates
-				.map(new Function<Integer, Tuple2<Integer, Integer>>() {
-					public Tuple2<Integer, Integer> call(Integer integer) throws Exception {
-						return new Tuple2<Integer, Integer>(userId, integer);
-					}
-				});
+		JavaRDD<Tuple2<Integer, Integer>> userCandidates = candidates.map(new Function<Integer, Tuple2<Integer, Integer>>() {
+			public Tuple2<Integer, Integer> call(Integer integer) throws Exception {
+				return new Tuple2<Integer, Integer>(userId.hashCode(), integer);
+			}
+		});
+
+		// System.out.println("userCandidates: " + userCandidates.count());
 
 		// Predict recommendations for the given user
 		recommendations = model.predict(JavaPairRDD.fromJavaRDD(userCandidates)).collect();
+		List<Rating> sortedList = new ArrayList<Rating>();
+
+		for (Rating recommendation : recommendations) {
+			System.out.println("Recommendation: product: " + recommendation.product() + " user: " + recommendation.user() + " predicted score: "
+					+ recommendation.rating());
+			sortedList.add(recommendation);
+		}
 
 		// Sorting the recommended products and sort them according to the rating
-		Collections.sort(recommendations, new Comparator<Rating>() {
+
+		Collections.sort(sortedList, new Comparator<Rating>() {
 			public int compare(Rating r1, Rating r2) {
 				return r1.rating() < r2.rating() ? -1 : r1.rating() > r2.rating() ? 1 : 0;
 			}
 		});
 
+		System.out.println("Recommendations sort completed");
+
 		// get top 50 from the recommended products.
-		recommendations = recommendations.subList(0, 50);
+		// recommendations = recommendations.subList(0, 50);
 
 		return recommendations;
 	}
