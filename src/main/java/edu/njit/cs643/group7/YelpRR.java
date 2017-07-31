@@ -38,10 +38,11 @@ public class YelpRR {
 	@SuppressWarnings("unused")
 	public static void main(String[] args) {
 		spark = SparkSession.builder().appName(APP_NAME).getOrCreate();
-		/** String bizJsonPath =
-		 "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_business.json";
-		 String reviewJsonPath =
-		 "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_review.json";
+		/**
+		 * String bizJsonPath =
+		 * "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_business.json";
+		 * String reviewJsonPath =
+		 * "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_review.json";
 		 **/
 		String bizJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_business.json";
 		String reviewJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_review.json";
@@ -67,7 +68,7 @@ public class YelpRR {
 		JavaRDD<Tuple2<Integer, Rating>> ratings = restaurantReviewsDS.javaRDD()
 				.map(new Function<Row, Tuple2<Integer, Rating>>() {
 					public Tuple2<Integer, Rating> call(Row aRow) throws Exception {
-						Integer cacheStamp = Integer.valueOf(aRow.getAs("review_id").hashCode());
+						Integer cacheStamp = Integer.valueOf(aRow.getAs("review_id").hashCode()) % 10;
 						Rating rating = new Rating(Integer.valueOf(aRow.getAs("user_id").hashCode()),
 								Integer.valueOf(aRow.getAs("business_id").hashCode()), aRow.getAs("stars"));
 						return new Tuple2<Integer, Rating>(cacheStamp, rating);
@@ -103,7 +104,6 @@ public class YelpRR {
 		// training data set
 		JavaRDD<Rating> training = ratings.filter(new Function<Tuple2<Integer, Rating>, Boolean>() {
 			public Boolean call(Tuple2<Integer, Rating> tuple) throws Exception {
-				System.out.println(tuple._1());
 				return tuple._1() < 6;
 			}
 		}).map(new Function<Tuple2<Integer, Rating>, Rating>() {
@@ -116,7 +116,7 @@ public class YelpRR {
 		// validation data set
 		JavaRDD<Rating> validation = ratings.filter(new Function<Tuple2<Integer, Rating>, Boolean>() {
 			public Boolean call(Tuple2<Integer, Rating> tuple) throws Exception {
-				return tuple._1() >= 6 && tuple._1() < 9;
+				return tuple._1() >= 6 && tuple._1() < 8;
 			}
 		}).map(new Function<Tuple2<Integer, Rating>, Rating>() {
 			public Rating call(Tuple2<Integer, Rating> tuple) throws Exception {
@@ -127,7 +127,7 @@ public class YelpRR {
 		// test data set
 		JavaRDD<Rating> test = ratings.filter(new Function<Tuple2<Integer, Rating>, Boolean>() {
 			public Boolean call(Tuple2<Integer, Rating> tuple) throws Exception {
-				return tuple._1() >= 9;
+				return tuple._1() >= 8;
 			}
 		}).map(new Function<Tuple2<Integer, Rating>, Rating>() {
 			public Rating call(Tuple2<Integer, Rating> tuple) throws Exception {
