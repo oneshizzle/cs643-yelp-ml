@@ -19,6 +19,8 @@ public class ValidateModel {
 
 	@Test
 	public void testBusinessModel() {
+		System.out.println("NxL8SIC5yqOdnlXCg18IBg".hashCode());
+
 		Gson gson = new Gson();
 		List<Business> businesses = new ArrayList<Business>();
 

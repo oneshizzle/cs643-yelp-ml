@@ -5,6 +5,10 @@ import java.util.List;
 
 public class Business implements Serializable {
 
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
 	private String business_id;
 	private String name;
 	private String neighborhood;

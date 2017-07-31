@@ -4,16 +4,20 @@ import java.io.Serializable;
 
 public class Review implements Serializable {
 
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 1L;
 	private String review_id;
 	private String user_id;
 	private String business_id;
 	private Double stars;
 	private String date;
 	private String text;
-	private String useful;
-	private Boolean funny;
-	private Boolean cool;
-	private Boolean type;
+	private Long useful;
+	private Long funny;
+	private Long cool;
+	private String type;
 	
 	public String getReview_id() {
 		return review_id;
@@ -51,28 +55,28 @@ public class Review implements Serializable {
 	public void setText(String text) {
 		this.text = text;
 	}
-	public String getUseful() {
+	public Long getUseful() {
 		return useful;
 	}
-	public void setUseful(String useful) {
+	public void setUseful(Long useful) {
 		this.useful = useful;
 	}
-	public Boolean getFunny() {
+	public Long getFunny() {
 		return funny;
 	}
-	public void setFunny(Boolean funny) {
+	public void setFunny(Long funny) {
 		this.funny = funny;
 	}
-	public Boolean getCool() {
+	public Long getCool() {
 		return cool;
 	}
-	public void setCool(Boolean cool) {
+	public void setCool(Long cool) {
 		this.cool = cool;
 	}
-	public Boolean getType() {
+	public String getType() {
 		return type;
 	}
-	public void setType(Boolean type) {
+	public void setType(String type) {
 		this.type = type;
 	}
 }
