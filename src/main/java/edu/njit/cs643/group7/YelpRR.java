@@ -38,12 +38,9 @@ public class YelpRR {
 	private static SparkSession spark;
 
 	public static void main(String[] args) {
+		long startTime = System.currentTimeMillis();
 		spark = SparkSession.builder().appName(APP_NAME).getOrCreate();
 
-		// String bizJsonPath =
-		// "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_business.json";
-		// String reviewJsonPath =
-		// "hdfs://namenode:9000/user/ubuntu/YelpData/yelp_academic_dataset_review.json";
 		String bizJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_business.json";
 		String reviewJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_review.json";
 		String userJsonPath = "hdfs://hadoop-master:8020/user/ec2-user/yelp_academic_dataset_user.json";
@@ -74,13 +71,12 @@ public class YelpRR {
 		Dataset<Row> restaurantNewReviewsDS = reviewpost2016DS.join(restaurantDS.select("business_id", "name", "state"), "business_id").distinct();
 		Dataset<Row> restaurantReviewsDS = reviewDS.join(restaurantDS.select("business_id", "name", "state"), "business_id").distinct();
 
-		System.out.println("Getting Commmon Users (Reviewers) before and after 2016: ");
+		System.out.println("Getting Common Users (Reviewers) before and after 2016: ");
 		// find common reviews across dataset
 		Dataset<Row> commonUsers = restaurantOldReviewsDS
 				.filter((FilterFunction<Row>) aRow -> Arrays.asList("NJ", "NY", "CT").contains(aRow.getAs("state")))
 				.join(restaurantNewReviewsDS, "user_id")
-				.filter((FilterFunction<Row>) aRow -> Arrays.asList("NJ", "NY", "CT").contains(aRow.getAs("state"))).select("user_id")
-				.distinct();
+				.filter((FilterFunction<Row>) aRow -> Arrays.asList("NJ", "NY", "CT").contains(aRow.getAs("state"))).select("user_id").distinct();
 
 		commonUsers.show();
 
@@ -216,7 +212,7 @@ public class YelpRR {
 		 * 
 		 **/
 
-		System.out.println("\n" + restaurantDS.count() + " total number of area restaurants");
+		System.out.println("\n" + restaurantDS.count() + " total number of restaurants");
 
 		System.out.println(njAreaRestaurantDS.count() + " number of nj area restaurants");
 
@@ -235,7 +231,6 @@ public class YelpRR {
 			System.out.println("\nGetting recommendations for: " + user_id);
 
 			List<Rating> recommendations = getRecommendations(user_id, finalModel, pre2016Ratings, njAreaRestaurantDS);
-			System.out.println("\nRecommendations size: " + recommendations.size() + " \n");
 
 			Dataset<Row> actualpost2016Reviews = restaurantNewReviewsDS
 					.filter((FilterFunction<Row>) aReview -> aReview.getAs("user_id").toString().equalsIgnoreCase(user_id))
@@ -258,6 +253,10 @@ public class YelpRR {
 
 			}
 		}
+
+		long stopTime = System.currentTimeMillis();
+		long elapsedTime = stopTime - startTime;
+		System.out.println("\nTime taken in ms: " + elapsedTime);
 
 	}
 
@@ -382,7 +381,7 @@ public class YelpRR {
 		System.out.println("\nRecommendations sort completed");
 
 		Collections.reverse(sortedList);
-		int max = sortedList.size() < 10 ? sortedList.size() : 10;
+		int max = sortedList.size() < 10 ? sortedList.size() : 11;
 		// get top 50 from the recommended products.
 		if (max > 0) {
 			sortedList = sortedList.subList(0, max - 1);
